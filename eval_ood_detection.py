@@ -20,6 +20,7 @@ import utils.svhn_loader as svhn
 import numpy as np
 import time
 from scipy import misc
+import copy
 from utils import OODScoreLinfPGDAttack, ConfidenceLinfPGDAttack, MahalanobisLinfPGDAttack, SOFLLinfPGDAttack, metric, sample_estimator, get_Mahalanobis_score, gen_corruction_image
 
 parser = argparse.ArgumentParser(description='Pytorch Detecting Out-of-distribution examples in neural networks')
@@ -218,15 +219,15 @@ def eval_ood_detector(base_dir, in_dataset, out_datasets, batch_size, method, me
     if in_dataset == "CIFAR-10":
         normalizer = transforms.Normalize((125.3/255, 123.0/255, 113.9/255), (63.0/255, 62.1/255.0, 66.7/255.0))
         testset = torchvision.datasets.CIFAR10(root='./datasets/cifar10', train=False, download=True, transform=transform)
-        testloaderIn = torch.utils.data.DataLoader(testset, batch_size=batch_size,
-                                         shuffle=True, num_workers=2)
-        num_classes = 10
+        # testloaderIn = torch.utils.data.DataLoader(testset, batch_size=batch_size,
+        #                                  shuffle=True, num_workers=2)
+        num_classes = 6
         num_reject_classes = 5
     elif in_dataset == "CIFAR-100":
         normalizer = transforms.Normalize((125.3/255, 123.0/255, 113.9/255), (63.0/255, 62.1/255.0, 66.7/255.0))
         testset = torchvision.datasets.CIFAR100(root='./datasets/cifar100', train=False, download=True, transform=transform)
-        testloaderIn = torch.utils.data.DataLoader(testset, batch_size=batch_size,
-                                         shuffle=True, num_workers=2)
+        # testloaderIn = torch.utils.data.DataLoader(testset, batch_size=batch_size,
+        #                                  shuffle=True, num_workers=2)
         num_classes = 100
         num_reject_classes = 10
     elif in_dataset == "SVHN":
@@ -245,6 +246,36 @@ def eval_ood_detector(base_dir, in_dataset, out_datasets, batch_size, method, me
         num_reject_classes = 1
 
     method_args['num_classes'] = num_classes
+    
+
+    normal_classes = [0,1,2,3,4,5]
+    abnormal_classes = [c for c in range(10) if c not in normal_classes]
+    
+    print(f'Normal Classes: {normal_classes}')
+    print(f'Abnormal Classes: {abnormal_classes}')
+
+    label_mapping = {c: i for i, c in enumerate(normal_classes)}
+    label_mapping.update({c: num_classes for c in abnormal_classes})
+
+
+    testset_in = copy.deepcopy(testset)
+    testset_out = copy.deepcopy(testset)
+    
+    testset_in.targets = [label_mapping[target.item()] for target in testset_in.targets]
+    normal_indices = [i for i, target in enumerate(testset_in.targets) if target != num_classes]
+    testset_in.data = testset_in.data[normal_indices]
+    testset_in.targets = [target for target in testset_in.targets if target != num_classes]
+    testloaderIn = torch.utils.data.DataLoader(testset, batch_size=batch_size,
+                                            shuffle=True, num_workers=2)    
+    
+    
+    testset_out.targets = [label_mapping[target.item()] for target in testset_out.targets]    
+    abnormal_indices = [i for i, target in enumerate(testset_out.targets) if target == num_classes]
+    testset_out.data = testset_out.data[abnormal_indices]
+    testset_out.targets = [target for target in testset_out.targets if target == num_classes]
+    testloaderOut = torch.utils.data.DataLoader(testset_out, batch_size=batch_size,
+                                             shuffle=True, num_workers=2)    
+    
 
     if args.model_arch == 'densenet':
         model = dn.DenseNet3(args.layers, num_classes + num_reject_classes, normalizer=normalizer)
@@ -358,72 +389,66 @@ def eval_ood_detector(base_dir, in_dataset, out_datasets, batch_size, method, me
     if mode_args['in_dist_only']:
         return
 
-    for out_dataset in out_datasets:
+    
+    out_dataset=in_dataset
+    # for out_dataset in out_datasets:
 
-        out_save_dir = os.path.join(in_save_dir, out_dataset)
+    out_save_dir = os.path.join(in_save_dir, out_dataset)
 
-        if not os.path.exists(out_save_dir):
-            os.makedirs(out_save_dir)
+    if not os.path.exists(out_save_dir):
+        os.makedirs(out_save_dir)
 
-        f2 = open(os.path.join(out_save_dir, "out_scores.txt"), 'w')
+    f2 = open(os.path.join(out_save_dir, "out_scores.txt"), 'w')
 
-        if not os.path.exists(out_save_dir):
-            os.makedirs(out_save_dir)
+    if not os.path.exists(out_save_dir):
+        os.makedirs(out_save_dir)
 
-        if out_dataset == 'SVHN':
-            testsetout = svhn.SVHN('datasets/ood_datasets/svhn/', split='test',
-                                  transform=transforms.ToTensor(), download=False)
-            testloaderOut = torch.utils.data.DataLoader(testsetout, batch_size=batch_size,
-                                             shuffle=True, num_workers=2)
-        elif out_dataset == 'dtd':
-            testsetout = torchvision.datasets.ImageFolder(root="datasets/ood_datasets/dtd/images",
-                                        transform=transforms.Compose([transforms.Resize(32), transforms.CenterCrop(32), transforms.ToTensor()]))
-            testloaderOut = torch.utils.data.DataLoader(testsetout, batch_size=batch_size, shuffle=True,
-                                                     num_workers=2)
-        elif out_dataset == 'places365':
-            testsetout = torchvision.datasets.ImageFolder(root="datasets/ood_datasets/places365/test_subset",
-                                        transform=transforms.Compose([transforms.Resize(32), transforms.CenterCrop(32), transforms.ToTensor()]))
-            testloaderOut = torch.utils.data.DataLoader(testsetout, batch_size=batch_size, shuffle=True,
-                                                     num_workers=2)
-        else:
-            testsetout = torchvision.datasets.ImageFolder("./datasets/ood_datasets/{}".format(out_dataset),
-                                        transform=transforms.Compose([transforms.Resize(32), transforms.CenterCrop(32), transforms.ToTensor()]))
-            testloaderOut = torch.utils.data.DataLoader(testsetout, batch_size=batch_size,
-                                             shuffle=True, num_workers=2)
+        # if out_dataset == 'SVHN':
+        #     testsetout = svhn.SVHN('datasets/ood_datasets/svhn/', split='test',
+        #                           transform=transforms.ToTensor(), download=False)
+        #     testloaderOut = torch.utils.data.DataLoader(testsetout, batch_size=batch_size,
+        #                                      shuffle=True, num_workers=2)
+        # elif out_dataset == 'dtd':
+        #     testsetout = torchvision.datasets.ImageFolder(root="datasets/ood_datasets/dtd/images",
+        #                                 transform=transforms.Compose([transforms.Resize(32), transforms.CenterCrop(32), transforms.ToTensor()]))
+        #     testloaderOut = torch.utils.data.DataLoader(testsetout, batch_size=batch_size, shuffle=True,
+        #                                              num_workers=2)
+        # elif out_dataset == 'places365':
+        #     testsetout = torchvision.datasets.ImageFolder(root="datasets/ood_datasets/places365/test_subset",
+        #                                 transform=transforms.Compose([transforms.Resize(32), transforms.CenterCrop(32), transforms.ToTensor()]))
+        #     testloaderOut = torch.utils.data.DataLoader(testsetout, batch_size=batch_size, shuffle=True,
+        #                                              num_workers=2)
+        # else:
+        #     testsetout = torchvision.datasets.ImageFolder("./datasets/ood_datasets/{}".format(out_dataset),
+        #                                 transform=transforms.Compose([transforms.Resize(32), transforms.CenterCrop(32), transforms.ToTensor()]))
+        #     testloaderOut = torch.utils.data.DataLoader(testsetout, batch_size=batch_size,
+        #                                      shuffle=True, num_workers=2)
 
     ###################################Out-of-Distributions#####################################
+    t0 = time.time()
+    print("Processing out-of-distribution images")
+
+    N = len(testloaderOut.dataset)
+    count = 0
+    for j, data in enumerate(testloaderOut):
+
+        images, labels = data
+        images = images.cuda()
+        # labels = labels.cuda()
+        curr_batch_size = images.shape[0]
+
+        inputs = images
+
+        scores = get_score(inputs, model, method, method_args)
+
+        for score in scores:
+            f2.write("{}\n".format(score))
+
+        count += curr_batch_size
+        print("{:4}/{:4} images processed, {:.1f} seconds used.".format(count, N, time.time()-t0))
         t0 = time.time()
-        print("Processing out-of-distribution images")
 
-        N = len(testloaderOut.dataset)
-        count = 0
-        for j, data in enumerate(testloaderOut):
-
-            images, labels = data
-            images = images.cuda()
-            labels = labels.cuda()
-            curr_batch_size = images.shape[0]
-
-            if adv:
-                inputs = attack_out.perturb(images)
-            elif corrupt:
-                inputs = corrupt_attack(images, model, method, method_args, False, adv_args['severity_level'])
-            elif adv_corrupt:
-                corrupted_images = corrupt_attack(images, model, method, method_args, False, adv_args['severity_level'])
-                inputs = attack_out.perturb(corrupted_images)
-            else:
-                inputs = images
-
-            scores = get_score(inputs, model, method, method_args)
-
-            for score in scores:
-                f2.write("{}\n".format(score))
-
-            count += curr_batch_size
-            print("{:4}/{:4} images processed, {:.1f} seconds used.".format(count, N, time.time()-t0))
-            t0 = time.time()
-
-        f2.close()
+    f2.close()
 
     return
 

@@ -6,12 +6,16 @@ class TinyImages(torch.utils.data.Dataset):
 
     def __init__(self, transform=None, exclude_cifar=True):
 
-        data_file = open('datasets/unlabeled_datasets/80M_Tiny_Images/tiny_images.bin', "rb")
+        # data_file = open('datasets/unlabeled_datasets/80M_Tiny_Images/tiny_images.bin', "rb")
+        data_file=np.load('/content/informative-outlier-mining/datasets/unlabeled_datasets/80M_Tiny_Images/300K_random_images.npy')
+        
 
         def load_image(idx):
-            data_file.seek(idx * 3072)
-            data = data_file.read(3072)
-            return np.fromstring(data, dtype='uint8').reshape(32, 32, 3, order="F")
+            # data_file.seek(idx * 3072)
+            # data = data_file.read(3072)
+            # return np.fromstring(data, dtype='uint8').reshape(32, 32, 3, order="F")
+            idx = np.random.randint(0, len(data_file))
+            return data_file[idx].reshape(32, 32, 3, order="F")
 
         self.load_image = load_image
         self.offset = 0     # offset index

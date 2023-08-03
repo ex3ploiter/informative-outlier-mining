@@ -48,22 +48,22 @@ parser.add_argument('--beta', default=1.0, type=float, help='beta for out_loss')
 parser.add_argument('--name', required=True, type=str,
                     help='name of experiment')
 
-parser.add_argument('--epochs', default=100, type=int,
+parser.add_argument('--epochs', default=5, type=int,
                     help='number of total epochs to run')
-parser.add_argument('--save-epoch', default=10, type=int,
+parser.add_argument('--save-epoch', default=1, type=int,
                     help='save the model every save_epoch')
 parser.add_argument('--start-epoch', default=0, type=int,
                     help='manual epoch number (useful on restarts)')
-parser.add_argument('-b', '--batch-size', default=64, type=int,
+parser.add_argument('-b', '--batch-size', default=32, type=int,
                     help='mini-batch size (default: 64)')
-parser.add_argument('--ood-batch-size', default=400, type=int,
+parser.add_argument('--ood-batch-size', default=32, type=int,
                     help='mini-batch size (default: 400)')
 parser.add_argument('--lr', '--learning-rate', default=0.1, type=float,
                     help='initial learning rate')
 parser.add_argument('--momentum', default=0.9, type=float, help='momentum')
 parser.add_argument('--weight-decay', '--wd', default=0.0001, type=float,
                     help='weight decay (default: 0.0001)')
-parser.add_argument('--print-freq', '-p', default=10, type=int,
+parser.add_argument('--print-freq', '-p', default=1, type=int,
                     help='print frequency (default: 10)')
 parser.add_argument('--layers', default=100, type=int,
                     help='total number of layers (default: 100)')
@@ -132,24 +132,31 @@ def main():
             datasets.CIFAR10('./datasets/cifar10', train=True, download=True,
                              transform=transform_train),
             batch_size=args.batch_size, shuffle=True, **kwargs)
-        val_loader = torch.utils.data.DataLoader(
-            datasets.CIFAR10('./datasets/cifar10', train=False, transform=transform_test),
-            batch_size=args.batch_size, shuffle=True, **kwargs)
+        # val_loader = torch.utils.data.DataLoader(
+        #     datasets.CIFAR10('./datasets/cifar10', train=False, transform=transform_test),
+        #     batch_size=args.batch_size, shuffle=True, **kwargs)
+        
+        train_dataset=datasets.CIFAR10('./datasets/cifar10', train=True, download=True,
+                             transform=transform_train)
 
         lr_schedule=[50, 75, 90]
         pool_size = args.pool_size
-        num_classes = 10
+        num_classes = 6
     elif args.in_dataset == "CIFAR-100":
         # Data loading code
         normalizer = transforms.Normalize(mean=[x/255.0 for x in [125.3, 123.0, 113.9]],
                                          std=[x/255.0 for x in [63.0, 62.1, 66.7]])
-        train_loader = torch.utils.data.DataLoader(
-            datasets.CIFAR100('./datasets/cifar100', train=True, download=True,
-                             transform=transform_train),
-            batch_size=args.batch_size, shuffle=True, **kwargs)
-        val_loader = torch.utils.data.DataLoader(
-            datasets.CIFAR100('./datasets/cifar100', train=False, transform=transform_test),
-            batch_size=args.batch_size, shuffle=True, **kwargs)
+        # train_loader = torch.utils.data.DataLoader(
+        #     datasets.CIFAR100('./datasets/cifar100', train=True, download=True,
+        #                      transform=transform_train),
+        #     batch_size=args.batch_size, shuffle=True, **kwargs)
+        
+        
+        train_dataset=datasets.CIFAR100('./datasets/cifar100', train=True, download=True,
+                             transform=transform_train)
+        # val_loader = torch.utils.data.DataLoader(
+        #     datasets.CIFAR100('./datasets/cifar100', train=False, transform=transform_test),
+        #     batch_size=args.batch_size, shuffle=True, **kwargs)
 
         lr_schedule=[50, 75, 90]
         pool_size = args.pool_size
@@ -172,6 +179,36 @@ def main():
         pool_size = int(len(train_loader.dataset) * 8 / args.ood_batch_size) + 1
         num_classes = 10
 
+    
+    
+    
+    normal_classes = [0,1,2,3,4,5]
+    abnormal_classes = [c for c in range(10) if c not in normal_classes]
+    
+    print(f'Normal Classes: {normal_classes}')
+    print(f'Abnormal Classes: {abnormal_classes}')
+
+    label_mapping = {c: i for i, c in enumerate(normal_classes)}
+    label_mapping.update({c: num_classes for c in abnormal_classes})
+
+
+    train_dataset.targets = [label_mapping[target.item()] for target in train_dataset.targets]
+    # test_dataset.targets = [label_mapping[target.item()] for target in test_dataset.targets]
+
+    # Remove abnormal classes from the train dataset
+    normal_indices = [i for i, target in enumerate(train_dataset.targets) if target != num_classes]
+    train_dataset.data = train_dataset.data[normal_indices]
+    train_dataset.targets = [target for target in train_dataset.targets if target != num_classes]
+
+    
+    # testset = test_dataset
+    
+    train_loader = torch.utils.data.DataLoader(train_dataset,batch_size=args.batch_size, shuffle=True, **kwargs)
+    
+    
+    
+    
+    
     ood_dataset_size = len(train_loader.dataset) * 2
     print('OOD Dataset Size: ', ood_dataset_size)
     if args.auxiliary_dataset == '80m_tiny_images':
@@ -208,7 +245,7 @@ def main():
         else:
             assert False, "=> no checkpoint found at '{}'".format(args.resume)
 
-    attack_out = LinfPGDAttack(model = model, eps=args.epsilon, nb_iter=args.iters, eps_iter=args.iter_size, targeted=False, rand_init=True, num_classes=num_classes+1, loss_func='CE', elementwise_best=True)
+    # attack_out = LinfPGDAttack(model = model, eps=args.epsilon, nb_iter=args.iters, eps_iter=args.iter_size, targeted=False, rand_init=True, num_classes=num_classes+1, loss_func='CE', elementwise_best=True)
 
     # get the number of model parameters
     print('Number of model parameters: {}'.format(
@@ -330,11 +367,12 @@ def train_atom(train_loader_in, train_loader_out, model, criterion, num_classes,
         out_target = out_set[1]
         out_target = out_target.cuda()
 
-        adv_out_input = attack_out.perturb(out_input[int(out_len/2):], out_target[int(out_len/2):])
+        # adv_out_input = attack_out.perturb(out_input[int(out_len/2):], out_target[int(out_len/2):])
 
         model.train()
 
-        cat_input = torch.cat((in_input, out_input[:int(out_len/2)], adv_out_input), 0)
+        # cat_input = torch.cat((in_input, out_input[:int(out_len/2)], adv_out_input), 0)
+        cat_input = torch.cat((in_input,out_input), 0)
         cat_output = model(cat_input)
 
         in_output = cat_output[:in_len]
