@@ -7,7 +7,7 @@ class TinyImages(torch.utils.data.Dataset):
     def __init__(self, transform=None, exclude_cifar=True):
 
         # data_file = open('datasets/unlabeled_datasets/80M_Tiny_Images/tiny_images.bin', "rb")
-        data_file=np.load('/content/informative-outlier-mining/datasets/unlabeled_datasets/80M_Tiny_Images/300K_random_images.npy')
+        data_file=np.load('./datasets/unlabeled_datasets/80M_Tiny_Images/300K_random_images.npy')
         
 
         def load_image(idx):
