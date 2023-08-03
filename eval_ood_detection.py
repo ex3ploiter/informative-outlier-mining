@@ -269,7 +269,11 @@ def eval_ood_detector(base_dir, in_dataset, out_datasets, batch_size, method, me
     method_args['num_classes'] = num_classes
     
 
-    normal_classes = [0,1,2,3,4,5]
+    # normal_classes = [0,1,2,3,4,5]
+    read_numbers = np.loadtxt('./random_numbers.txt', dtype=int)
+    normal_classes=read_numbers.tolist()    
+
+
     abnormal_classes = [c for c in range(10) if c not in normal_classes]
     if args.in_dataset == "CIFAR-100":
       abnormal_classes = [c for c in range(100) if c not in normal_classes]
