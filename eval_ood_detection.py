@@ -228,8 +228,29 @@ def eval_ood_detector(base_dir, in_dataset, out_datasets, batch_size, method, me
         testset = torchvision.datasets.CIFAR100(root='./datasets/cifar100', train=False, download=True, transform=transform)
         # testloaderIn = torch.utils.data.DataLoader(testset, batch_size=batch_size,
         #                                  shuffle=True, num_workers=2)
-        num_classes = 100
+        num_classes = 6
         num_reject_classes = 10
+    
+    elif in_dataset=="MNIST"    :
+        normalizer = transforms.Normalize((125.3/255, 123.0/255, 113.9/255), (63.0/255, 62.1/255.0, 66.7/255.0))
+        testset = torchvision.datasets.MNIST(root='./datasets/data', train=False, download=True,
+                                    transform=transforms.Compose([transforms.ToTensor(),
+                                                                    transforms.Resize(32),
+                                                                    transforms.Lambda(lambda x: x.repeat(3, 1, 1)),
+                                                                    ]))
+        num_classes = 6
+        num_reject_classes = 5
+
+    elif in_dataset=="FMNIST"    :
+        normalizer = transforms.Normalize((125.3/255, 123.0/255, 113.9/255), (63.0/255, 62.1/255.0, 66.7/255.0))
+        testset = torchvision.datasets.FashionMNIST(root='./datasets/data', train=False, download=True,
+                                    transform=transforms.Compose([transforms.ToTensor(),
+                                                                    transforms.Resize(32),
+                                                                    transforms.Lambda(lambda x: x.repeat(3, 1, 1)),
+                                                                    ]))
+        num_classes = 6
+        num_reject_classes = 5    
+    
     elif in_dataset == "SVHN":
         normalizer = None
         testset = svhn.SVHN('datasets/svhn/', split='test',
@@ -261,7 +282,12 @@ def eval_ood_detector(base_dir, in_dataset, out_datasets, batch_size, method, me
     testset_in = copy.deepcopy(testset)
     testset_out = copy.deepcopy(testset)
     
-    testset_in.targets = [label_mapping[target.item()] for target in testset_in.targets]
+    
+    try :   
+        testset_in.targets = [label_mapping[target] for target in testset_in.targets]
+    except:
+        testset_in.targets = [label_mapping[target.item()] for target in testset_in.targets]
+
     normal_indices = [i for i, target in enumerate(testset_in.targets) if target != num_classes]
     testset_in.data = testset_in.data[normal_indices]
     testset_in.targets = [target for target in testset_in.targets if target != num_classes]
@@ -269,7 +295,10 @@ def eval_ood_detector(base_dir, in_dataset, out_datasets, batch_size, method, me
                                             shuffle=True, num_workers=2)    
     
     
-    testset_out.targets = [label_mapping[target.item()] for target in testset_out.targets]    
+    try:
+        testset_out.targets = [label_mapping[target] for target in testset_out.targets]    
+    except:
+        testset_out.targets = [label_mapping[target.item()] for target in testset_out.targets]    
     abnormal_indices = [i for i, target in enumerate(testset_out.targets) if target == num_classes]
     testset_out.data = testset_out.data[abnormal_indices]
     testset_out.targets = [target for target in testset_out.targets if target == num_classes]

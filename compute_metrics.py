@@ -315,14 +315,14 @@ def compute_adv_corrupt_ood(base_dir, in_dataset, out_datasets, method, name, ep
 
 
 if __name__ == '__main__':
-
-    if args.in_dataset == "CIFAR-10" or args.in_dataset == "CIFAR-100":
-        out_datasets = ['LSUN', 'LSUN_resize', 'iSUN', 'dtd', 'places365', 'SVHN']
+    if args.in_dataset == "CIFAR-10" or args.in_dataset == "CIFAR-100" or args.in_dataset=="MNIST" or args.in_dataset=="FMNIST":
+        # out_datasets = ['LSUN', 'LSUN_resize', 'iSUN', 'dtd', 'places365', 'SVHN']
+        out_datasets=[args.in_dataset]
     elif args.in_dataset == "SVHN":
         out_datasets = ['LSUN', 'LSUN_resize', 'iSUN', 'dtd', 'places365', 'CIFAR-10']
 
     compute_traditional_ood(args.base_dir, args.in_dataset, out_datasets, args.method, args.name)
-    compute_corrupt_ood(args.base_dir, args.in_dataset, out_datasets, args.method, args.name)
-    compute_adv_ood(args.base_dir, args.in_dataset, out_datasets, args.method, args.name, args.epsilon)
-    compute_adv_corrupt_ood(args.base_dir, args.in_dataset, out_datasets, args.method, args.name, args.epsilon)
-    compute_in(args.base_dir, args.in_dataset, args.method, args.name)
+    # compute_corrupt_ood(args.base_dir, args.in_dataset, out_datasets, args.method, args.name)
+    # compute_adv_ood(args.base_dir, args.in_dataset, out_datasets, args.method, args.name, args.epsilon)
+    # compute_adv_corrupt_ood(args.base_dir, args.in_dataset, out_datasets, args.method, args.name, args.epsilon)
+    # compute_in(args.base_dir, args.in_dataset, args.method, args.name)

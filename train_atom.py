@@ -128,39 +128,57 @@ def main():
         # Data loading code
         normalizer = transforms.Normalize(mean=[x/255.0 for x in [125.3, 123.0, 113.9]],
                                          std=[x/255.0 for x in [63.0, 62.1, 66.7]])
-        train_loader = torch.utils.data.DataLoader(
-            datasets.CIFAR10('./datasets/cifar10', train=True, download=True,
-                             transform=transform_train),
-            batch_size=args.batch_size, shuffle=True, **kwargs)
-        # val_loader = torch.utils.data.DataLoader(
-        #     datasets.CIFAR10('./datasets/cifar10', train=False, transform=transform_test),
-        #     batch_size=args.batch_size, shuffle=True, **kwargs)
-        
+
+
         train_dataset=datasets.CIFAR10('./datasets/cifar10', train=True, download=True,
                              transform=transform_train)
 
         lr_schedule=[50, 75, 90]
         pool_size = args.pool_size
         num_classes = 6
+
+    if args.in_dataset == "MNIST":
+        # Data loading code
+        normalizer = transforms.Normalize(mean=[x/255.0 for x in [125.3, 123.0, 113.9]],
+                                         std=[x/255.0 for x in [63.0, 62.1, 66.7]])
+
+        train_dataset=torchvision.datasets.MNIST(root='./datasets/data', train=True, download=True,
+                                    transform=transforms.Compose([transforms.ToTensor(),
+                                                                    transforms.Resize(32),
+                                                                    transforms.Lambda(lambda x: x.repeat(3, 1, 1)),
+                                                                    ]))
+
+        lr_schedule=[50, 75, 90]
+        pool_size = args.pool_size
+        num_classes = 6
+
+    if args.in_dataset == "FMNIST":
+        # Data loading code
+        normalizer = transforms.Normalize(mean=[x/255.0 for x in [125.3, 123.0, 113.9]],
+                                         std=[x/255.0 for x in [63.0, 62.1, 66.7]])
+
+        train_dataset=torchvision.datasets.FashionMNIST(root='./datasets/data', train=True, download=True,
+                                    transform=transforms.Compose([transforms.ToTensor(),
+                                                                    transforms.Resize(32),
+                                                                    transforms.Lambda(lambda x: x.repeat(3, 1, 1)),
+                                                                    ]))
+
+        lr_schedule=[50, 75, 90]
+        pool_size = args.pool_size
+        num_classes = 6        
+
     elif args.in_dataset == "CIFAR-100":
         # Data loading code
         normalizer = transforms.Normalize(mean=[x/255.0 for x in [125.3, 123.0, 113.9]],
                                          std=[x/255.0 for x in [63.0, 62.1, 66.7]])
-        # train_loader = torch.utils.data.DataLoader(
-        #     datasets.CIFAR100('./datasets/cifar100', train=True, download=True,
-        #                      transform=transform_train),
-        #     batch_size=args.batch_size, shuffle=True, **kwargs)
-        
+
         
         train_dataset=datasets.CIFAR100('./datasets/cifar100', train=True, download=True,
                              transform=transform_train)
-        # val_loader = torch.utils.data.DataLoader(
-        #     datasets.CIFAR100('./datasets/cifar100', train=False, transform=transform_test),
-        #     batch_size=args.batch_size, shuffle=True, **kwargs)
 
         lr_schedule=[50, 75, 90]
         pool_size = args.pool_size
-        num_classes = 100
+        num_classes = 6
     elif args.in_dataset == "SVHN":
         # Data loading code
         normalizer = None
@@ -192,7 +210,10 @@ def main():
     label_mapping.update({c: num_classes for c in abnormal_classes})
 
 
-    train_dataset.targets = [label_mapping[target.item()] for target in train_dataset.targets]
+    try:
+        train_dataset.targets = [label_mapping[target] for target in train_dataset.targets]
+    except:
+        train_dataset.targets = [label_mapping[target.item()] for target in train_dataset.targets]
     # test_dataset.targets = [label_mapping[target.item()] for target in test_dataset.targets]
 
     # Remove abnormal classes from the train dataset
@@ -269,10 +290,11 @@ def main():
         # train for one epoch
         selected_ood_loader = select_ood(ood_loader, model, args.batch_size * 2, num_classes, pool_size, ood_dataset_size, args.quantile)
 
-        train_atom(train_loader, selected_ood_loader, model, criterion, num_classes, optimizer, epoch, attack_out)
+        # train_atom(train_loader, selected_ood_loader, model, criterion, num_classes, optimizer, epoch, attack_out)
+        train_atom(train_loader, selected_ood_loader, model, criterion, num_classes, optimizer, epoch, None)
 
         # evaluate on validation set
-        prec1 = validate(val_loader, model, criterion, epoch, num_classes)
+        # prec1 = validate(val_loader, model, criterion, epoch, num_classes)
 
         # remember best prec@1 and save checkpoint
         if (epoch + 1) % args.save_epoch == 0:
