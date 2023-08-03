@@ -271,6 +271,8 @@ def eval_ood_detector(base_dir, in_dataset, out_datasets, batch_size, method, me
 
     normal_classes = [0,1,2,3,4,5]
     abnormal_classes = [c for c in range(10) if c not in normal_classes]
+    if args.in_dataset == "CIFAR-100":
+      abnormal_classes = [c for c in range(100) if c not in normal_classes]
     
     print(f'Normal Classes: {normal_classes}')
     print(f'Abnormal Classes: {abnormal_classes}')
